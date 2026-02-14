@@ -3,13 +3,17 @@
  * Used for terrain resolution, autotiling, and other engine-dependent ops.
  */
 
-import { writeFile, unlink, mkdtemp } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 
 const execFileAsync = promisify(execFile);
+
+function escapeGDString(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
 
 export interface RunResult {
   stdout: string;
@@ -24,7 +28,7 @@ export async function runGDScript(
   timeoutMs = 30000
 ): Promise<RunResult> {
   // Write script to a temp file inside the project (Godot needs res:// access)
-  const scriptPath = join(projectPath, `_tmp_cli_${Date.now()}.gd`);
+  const scriptPath = join(projectPath, `_tmp_cli_${randomUUID()}.gd`);
 
   try {
     await writeFile(scriptPath, script, 'utf-8');
@@ -55,8 +59,8 @@ export async function runGDScript(
   } finally {
     try {
       await unlink(scriptPath);
-    } catch {
-      // cleanup best effort
+    } catch (e) {
+      console.error('[godot-runner] cleanup failed:', e);
     }
   }
 }
@@ -77,9 +81,9 @@ export function generateTerrainScript(
 extends SceneTree
 
 func _init():
-	var scene = load("${scenePath}") as PackedScene
+	var scene = load("${escapeGDString(scenePath)}") as PackedScene
 	if not scene:
-		print("ERROR: Could not load scene: ${scenePath}")
+		print("ERROR: Could not load scene: ${escapeGDString(scenePath)}")
 		quit(1)
 		return
 
@@ -87,12 +91,12 @@ func _init():
 	var layer: TileMapLayer = null
 
 	for child in root.get_children():
-		if child is TileMapLayer and child.name == "${layerName}":
+		if child is TileMapLayer and child.name == "${escapeGDString(layerName)}":
 			layer = child as TileMapLayer
 			break
 
 	if not layer:
-		print("ERROR: TileMapLayer '${layerName}' not found")
+		print("ERROR: TileMapLayer '${escapeGDString(layerName)}' not found")
 		quit(1)
 		return
 
@@ -101,8 +105,8 @@ func _init():
 
 	var packed = PackedScene.new()
 	packed.pack(root)
-	ResourceSaver.save(packed, "${scenePath}")
-	print("OK: Terrain resolved for ${layerName}")
+	ResourceSaver.save(packed, "${escapeGDString(scenePath)}")
+	print("OK: Terrain resolved for ${escapeGDString(layerName)}")
 	quit(0)
 `;
 }
@@ -120,9 +124,9 @@ export function generateScreenshotScript(
 extends SceneTree
 
 func _init():
-	var scene = load("${scenePath}") as PackedScene
+	var scene = load("${escapeGDString(scenePath)}") as PackedScene
 	if not scene:
-		print("ERROR: Could not load scene: ${scenePath}")
+		print("ERROR: Could not load scene: ${escapeGDString(scenePath)}")
 		quit(1)
 		return
 
@@ -142,8 +146,8 @@ func _init():
 	await get_process_frame()
 
 	var image = viewport.get_texture().get_image()
-	image.save_png("${outputPath}")
-	print("OK: Screenshot saved to ${outputPath}")
+	image.save_png("${escapeGDString(outputPath)}")
+	print("OK: Screenshot saved to ${escapeGDString(outputPath)}")
 	quit(0)
 `;
 }

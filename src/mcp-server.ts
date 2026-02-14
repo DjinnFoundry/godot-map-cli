@@ -52,8 +52,13 @@ class GodotMapMCPServer {
       console.error('[godot-map-cli] Server error:', error);
     };
     process.on('SIGINT', async () => {
-      await this.server.close();
-      process.exit(0);
+      const forceExit = setTimeout(() => process.exit(1), 5000);
+      try {
+        await this.server.close();
+      } finally {
+        clearTimeout(forceExit);
+        process.exit(0);
+      }
     });
   }
 

@@ -294,6 +294,102 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
+  // ---- TileSet Management ----
+  {
+    name: 'godot_tileset_register_tiles',
+    description: 'Register specific tile definitions in a TileSet so Godot recognizes them. Required before setting collision or terrain data.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tileset_path: { type: 'string', description: 'Path to the .tres TileSet file.' },
+        tiles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              atlas_x: { type: 'integer' }, atlas_y: { type: 'integer' },
+              alt: { type: 'integer', description: 'Alternative tile ID. Default: 0.' },
+            },
+            required: ['atlas_x', 'atlas_y'],
+          },
+        },
+      },
+      required: ['tileset_path', 'tiles'],
+    },
+  },
+  {
+    name: 'godot_tileset_set_collision',
+    description: 'Add a collision polygon to a specific tile in a TileSet. Requires a physics layer.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tileset_path: { type: 'string', description: 'Path to the .tres TileSet file.' },
+        atlas_x: { type: 'integer' }, atlas_y: { type: 'integer' },
+        tile_size: { type: 'integer', description: 'Tile size in pixels.' },
+        polygon: {
+          type: 'array',
+          description: 'Polygon points. Defaults to full tile rectangle if omitted.',
+          items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] },
+        },
+        alt: { type: 'integer', description: 'Alternative tile ID. Default: 0.' },
+      },
+      required: ['tileset_path', 'atlas_x', 'atlas_y', 'tile_size'],
+    },
+  },
+  {
+    name: 'godot_tileset_add_terrain',
+    description: 'Add a terrain set with named terrains to a TileSet. Optionally assign peering bits to tiles.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tileset_path: { type: 'string', description: 'Path to the .tres TileSet file.' },
+        terrain_set: { type: 'integer', description: 'Terrain set index. Default: 0.' },
+        terrains: {
+          type: 'array',
+          description: 'Terrain definitions.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              color: { type: 'string', description: 'Godot Color format. Default: Color(0.2, 0.6, 0.3, 1).' },
+              mode: { type: 'integer', description: '0=Corners+Sides, 1=Corners, 2=Sides. Default: 0.' },
+            },
+            required: ['name'],
+          },
+        },
+        peering_bits: {
+          type: 'array',
+          description: 'Assign peering bits to specific tiles.',
+          items: {
+            type: 'object',
+            properties: {
+              atlas_x: { type: 'integer' }, atlas_y: { type: 'integer' },
+              alt: { type: 'integer' },
+              terrain_set: { type: 'integer' }, terrain: { type: 'integer' },
+              bits: { type: 'object', description: 'Map of peering bit name to terrain index.' },
+            },
+            required: ['atlas_x', 'atlas_y', 'terrain_set', 'terrain', 'bits'],
+          },
+        },
+      },
+      required: ['tileset_path', 'terrains'],
+    },
+  },
+
+  // ---- Layer Management ----
+  {
+    name: 'godot_layer_remove',
+    description: 'Remove a TileMapLayer node from a scene file.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        scene_path: { type: 'string', description: 'Path to the .tscn scene file.' },
+        layer_name: { type: 'string', description: 'Name of the layer to remove.' },
+      },
+      required: ['scene_path', 'layer_name'],
+    },
+  },
+
   // ---- Headless Godot ----
   {
     name: 'godot_terrain_resolve',

@@ -5,6 +5,14 @@
 import type { TileCell } from '../types/index.js';
 import { makeTile, fillRectTiles, seededRandom, type TilePalette, DEFAULT_PALETTE } from './base-generator.js';
 
+const DEFAULT_HOUSE_COUNT = 3;
+const MIN_HOUSE_WIDTH = 3;
+const MAX_HOUSE_WIDTH_EXTRA = 3;  // house width = MIN + floor(rng * this)
+const MIN_HOUSE_HEIGHT = 3;
+const MAX_HOUSE_HEIGHT_EXTRA = 2;
+const MAX_PLACEMENT_ATTEMPTS = 20;
+const HOUSE_MARGIN = 2;
+
 export interface VillageOptions {
   centerX: number;
   centerY: number;
@@ -22,6 +30,15 @@ interface House {
   h: number;
 }
 
+/**
+ * Generate a village layout with houses connected by L-shaped paths.
+ *
+ * Limitations:
+ * - Max 20 placement attempts per house; houses are silently skipped if they don't fit
+ * - Fixed 2-tile margin between houses (not configurable)
+ * - Inter-house paths are always L-shaped (horizontal then vertical)
+ * - House sizes are random: 3-5 wide, 3-4 tall
+ */
 export function generateVillage(options: VillageOptions): {
   ground: TileCell[];
   buildings: TileCell[];
@@ -32,7 +49,7 @@ export function generateVillage(options: VillageOptions): {
     centerY,
     width,
     height,
-    houseCount = 3,
+    houseCount = DEFAULT_HOUSE_COUNT,
     seed = 42,
   } = options;
   const palette = { ...DEFAULT_PALETTE, ...options.palette };
@@ -50,18 +67,18 @@ export function generateVillage(options: VillageOptions): {
 
   // Place houses
   for (let i = 0; i < houseCount; i++) {
-    const houseW = 3 + Math.floor(rng() * 3); // 3-5 wide
-    const houseH = 3 + Math.floor(rng() * 2); // 3-4 tall
+    const houseW = MIN_HOUSE_WIDTH + Math.floor(rng() * MAX_HOUSE_WIDTH_EXTRA);
+    const houseH = MIN_HOUSE_HEIGHT + Math.floor(rng() * MAX_HOUSE_HEIGHT_EXTRA);
 
     let placed = false;
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const hx = startX + 1 + Math.floor(rng() * (width - houseW - 2));
-      const hy = startY + 1 + Math.floor(rng() * (height - houseH - 2));
+    for (let attempt = 0; attempt < MAX_PLACEMENT_ATTEMPTS; attempt++) {
+      const hx = startX + 1 + Math.floor(rng() * (width - houseW - HOUSE_MARGIN));
+      const hy = startY + 1 + Math.floor(rng() * (height - houseH - HOUSE_MARGIN));
 
       // Check overlap with existing houses (with 1-tile margin)
       const overlaps = houses.some(h =>
-        hx < h.x + h.w + 2 && hx + houseW + 2 > h.x &&
-        hy < h.y + h.h + 2 && hy + houseH + 2 > h.y
+        hx < h.x + h.w + HOUSE_MARGIN && hx + houseW + HOUSE_MARGIN > h.x &&
+        hy < h.y + h.h + HOUSE_MARGIN && hy + houseH + HOUSE_MARGIN > h.y
       );
 
       if (!overlaps) {

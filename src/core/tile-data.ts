@@ -45,7 +45,12 @@ export function decodeTileData(base64: string): TileCell[] {
 }
 
 export function encodeTileData(cells: TileCell[]): string {
-  if (!cells || cells.length === 0) return '';
+  if (!cells || cells.length === 0) {
+    // Return valid empty tile data (just the 2-byte header) so Godot recognizes it
+    const emptyBuf = Buffer.alloc(HEADER_SIZE);
+    emptyBuf.writeUInt16LE(0, 0);
+    return emptyBuf.toString('base64');
+  }
 
   const buf = Buffer.alloc(HEADER_SIZE + cells.length * CELL_SIZE);
   buf.writeUInt16LE(0, 0); // format version

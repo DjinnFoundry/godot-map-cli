@@ -5,6 +5,10 @@
 import type { TileCell } from '../types/index.js';
 import { makeTile, fillRectTiles, seededRandom, type TilePalette, DEFAULT_PALETTE } from './base-generator.js';
 
+const DEFAULT_DENSITY = 0.5;
+const EDGE_BORDER = 1;
+const EDGE_FACTOR_DIVISOR = 3;
+
 export interface ForestOptions {
   x: number;
   y: number;
@@ -15,13 +19,21 @@ export interface ForestOptions {
   palette?: Partial<TilePalette>;
 }
 
+/**
+ * Generate a forest with clustered trees.
+ *
+ * Limitations:
+ * - 1-tile border is always ground (trees never at edges)
+ * - Clustering uses distance-from-edge only (no Perlin noise)
+ * - Actual tree density is not uniform; decreases near edges
+ */
 export function generateForest(options: ForestOptions): {
   ground: TileCell[];
   trees: TileCell[];
 } {
   const {
     x, y, width, height,
-    density = 0.5,
+    density = DEFAULT_DENSITY,
     seed = 42,
   } = options;
   const palette = { ...DEFAULT_PALETTE, ...options.palette };
@@ -35,7 +47,7 @@ export function generateForest(options: ForestOptions): {
   for (let dy = 0; dy < height; dy++) {
     for (let dx = 0; dx < width; dx++) {
       // Skip edges (1-tile border of ground)
-      if (dx === 0 || dx === width - 1 || dy === 0 || dy === height - 1) continue;
+      if (dx === 0 || dx === width - EDGE_BORDER || dy === 0 || dy === height - EDGE_BORDER) continue;
 
       // Weighted random with clustering
       const cx = x + dx;
@@ -44,8 +56,8 @@ export function generateForest(options: ForestOptions): {
 
       // Create natural-looking clusters using a simple approach:
       // higher density in the center, clearings near edges
-      const edgeDist = Math.min(dx, dy, width - 1 - dx, height - 1 - dy);
-      const edgeFactor = Math.min(1, edgeDist / 3);
+      const edgeDist = Math.min(dx, dy, width - EDGE_BORDER - dx, height - EDGE_BORDER - dy);
+      const edgeFactor = Math.min(1, edgeDist / EDGE_FACTOR_DIVISOR);
       const threshold = 1.0 - (density * edgeFactor);
 
       if (noiseVal > threshold) {

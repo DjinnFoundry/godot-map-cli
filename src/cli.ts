@@ -14,9 +14,9 @@
 import { Command } from 'commander';
 import { resolve, join } from 'node:path';
 import { createProject, getProjectInfo, isGodotProject } from './core/project.js';
-import { createTileSet } from './tileset/tileset-writer.js';
+import { createTileSet, registerTiles, setTileCollision, addTerrain } from './tileset/tileset-writer.js';
 import { parseTileSet } from './core/resource-parser.js';
-import { generateScene, generateTileMapScene, addLayerToScene } from './core/scene-writer.js';
+import { generateScene, generateTileMapScene, addLayerToScene, removeLayerFromScene } from './core/scene-writer.js';
 import {
   listTileMaps,
   getTileMapInfo,
@@ -107,6 +107,48 @@ tileset
   .action(async (path: string) => {
     const info = await parseTileSet(resolve(path));
     console.log(JSON.stringify(info, null, 2));
+  });
+
+tileset
+  .command('register-tiles <path>')
+  .description('Register tile definitions in a TileSet')
+  .requiredOption('--tiles <coords>', 'Tile coords as ax,ay;ax,ay;... (e.g., 0,0;1,0;2,0)')
+  .action(async (path: string, opts: { tiles: string }) => {
+    const tiles = opts.tiles.split(';').map(c => {
+      const [ax, ay] = c.split(',').map(Number);
+      return { atlas_x: ax, atlas_y: ay };
+    });
+    await registerTiles(resolve(path), tiles);
+    console.log(`Registered ${tiles.length} tiles in ${path}`);
+  });
+
+tileset
+  .command('set-collision <path>')
+  .description('Add collision polygon to a tile')
+  .requiredOption('--tile <ax,ay>', 'Atlas coords (e.g., 0,0)')
+  .requiredOption('--tile-size <size>', 'Tile size in pixels', parseInt)
+  .option('--polygon <points>', 'Polygon points as x,y;x,y;... (defaults to full tile rect)')
+  .action(async (path: string, opts: { tile: string; tileSize: number; polygon?: string }) => {
+    const [ax, ay] = opts.tile.split(',').map(Number);
+    const ts = opts.tileSize;
+    const polygon = opts.polygon
+      ? opts.polygon.split(';').map(p => { const [x, y] = p.split(',').map(Number); return { x, y }; })
+      : [{ x: 0, y: 0 }, { x: ts, y: 0 }, { x: ts, y: ts }, { x: 0, y: ts }];
+    await setTileCollision(resolve(path), ax, ay, polygon, ts);
+    console.log(`Collision set for tile (${ax},${ay})`);
+  });
+
+tileset
+  .command('add-terrain <path>')
+  .description('Add terrain set with terrains to a TileSet')
+  .requiredOption('--terrains <names>', 'Comma-separated terrain names (e.g., "grass,dirt,water")')
+  .option('--terrain-set <n>', 'Terrain set index', '0')
+  .option('--mode <n>', 'Mode: 0=Corners+Sides, 1=Corners, 2=Sides', '0')
+  .action(async (path: string, opts: { terrains: string; terrainSet: string; mode: string }) => {
+    const terrainNames = opts.terrains.split(',').map(n => n.trim());
+    const terrains = terrainNames.map(name => ({ name, mode: parseInt(opts.mode, 10) }));
+    await addTerrain(resolve(path), parseInt(opts.terrainSet, 10), terrains);
+    console.log(`Added terrain set ${opts.terrainSet} with terrains: ${terrainNames.join(', ')}`);
   });
 
 // ---- Map commands ----
@@ -224,13 +266,36 @@ map
 
 map
   .command('erase <scene>')
-  .description('Erase tiles in a rectangle')
+  .description('Erase tiles by rectangle or specific positions')
   .requiredOption('--layer <name>', 'Layer name')
-  .requiredOption('--rect <x,y,w,h>', 'Rectangle to erase')
-  .action(async (scene: string, opts: { layer: string; rect: string }) => {
-    const [x, y, w, h] = opts.rect.split(',').map(Number);
-    const result = await eraseRect(resolve(scene), opts.layer, { x, y, width: w, height: h });
-    console.log(`Erased ${result.tiles_erased} tiles. Remaining: ${result.total_tiles}`);
+  .option('--rect <x,y,w,h>', 'Rectangle to erase')
+  .option('--at <positions>', 'Specific positions as x1,y1;x2,y2;...')
+  .action(async (scene: string, opts: { layer: string; rect?: string; at?: string }) => {
+    if (!opts.rect && !opts.at) {
+      console.error('Either --rect or --at is required');
+      process.exit(1);
+    }
+    if (opts.at) {
+      const positions = opts.at.split(';').map(p => {
+        const [x, y] = p.split(',').map(Number);
+        return { x, y };
+      });
+      const result = await eraseTiles(resolve(scene), opts.layer, positions);
+      console.log(`Erased ${result.tiles_erased} tiles. Remaining: ${result.total_tiles}`);
+    } else {
+      const [x, y, w, h] = opts.rect!.split(',').map(Number);
+      const result = await eraseRect(resolve(scene), opts.layer, { x, y, width: w, height: h });
+      console.log(`Erased ${result.tiles_erased} tiles. Remaining: ${result.total_tiles}`);
+    }
+  });
+
+map
+  .command('remove-layer <scene>')
+  .description('Remove a TileMapLayer from a scene')
+  .requiredOption('--layer <name>', 'Layer name to remove')
+  .action(async (scene: string, opts: { layer: string }) => {
+    await removeLayerFromScene(resolve(scene), opts.layer);
+    console.log(`Layer "${opts.layer}" removed from ${scene}`);
   });
 
 // ---- Generator commands ----

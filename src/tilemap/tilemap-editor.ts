@@ -9,6 +9,8 @@ import { decodeTileData, encodeTileData } from '../core/tile-data.js';
 import { parseTscn, parseTscnText, findTileMapLayers, updateTileMapData } from '../core/scene-parser.js';
 import type { TileCell, TileMapLayerInfo, TileMapBounds, Rect } from '../types/index.js';
 
+const MAX_RENDER_AREA = 10000;
+
 export function resolvePath(input: string, projectPath: string): string {
   if (!input) throw new Error('Path is required');
   if (input.startsWith('res://')) return join(projectPath, input.slice(6));
@@ -297,7 +299,7 @@ export async function renderTileMap(
 
   const bounds = computeBounds(cells)!;
 
-  if (bounds.width * bounds.height > 10000) {
+  if (bounds.width * bounds.height > MAX_RENDER_AREA) {
     return {
       render: `(region too large for ASCII: ${bounds.width}x${bounds.height}. Use a smaller region filter.)`,
       bounds,

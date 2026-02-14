@@ -28,6 +28,7 @@ export async function createTileSet(options: CreateTileSetOptions): Promise<stri
   // Ensure image is inside the project
   let resImagePath: string;
   if (imagePath.startsWith(projectPath)) {
+    // Godot res:// paths use forward slashes; special chars like spaces are valid
     resImagePath = 'res://' + relative(projectPath, imagePath).replace(/\\/g, '/');
   } else {
     // Copy image into project assets
@@ -146,6 +147,86 @@ export async function setTileCollision(
   } else {
     // If tile def doesn't exist, add both
     lines.splice(resourceIdx, 0, tileDef, collisionLine, '');
+  }
+
+  await writeFile(tresPath, lines.join('\n'), 'utf-8');
+}
+
+export interface TerrainConfig {
+  name: string;
+  color?: string;  // Godot Color format, e.g., "Color(0.2, 0.6, 0.3, 1)"
+  mode?: number;   // 0 = Match Corners and Sides, 1 = Match Corners, 2 = Match Sides
+}
+
+/**
+ * Add a terrain set with terrains to an existing TileSet .tres file.
+ * Also assigns peering bits to specified tiles.
+ */
+export async function addTerrain(
+  tresPath: string,
+  terrainSetIndex: number,
+  terrains: TerrainConfig[],
+  peeringBits?: Array<{
+    atlas_x: number;
+    atlas_y: number;
+    alt?: number;
+    terrain_set: number;
+    terrain: number;
+    bits: Record<string, number>;
+  }>
+): Promise<void> {
+  const text = await readFile(tresPath, 'utf-8');
+  const lines = text.split('\n');
+
+  const resourceIdx = lines.findIndex(l => l.startsWith('[resource]'));
+  if (resourceIdx === -1) {
+    throw new Error('No [resource] section found in ' + tresPath);
+  }
+
+  // Find the sources/ line to insert terrain config before it
+  const sourcesIdx = lines.findIndex((l, i) => i >= resourceIdx && l.trim().startsWith('sources/'));
+  const insertIdx = sourcesIdx !== -1 ? sourcesIdx : lines.length;
+
+  const terrainLines: string[] = [];
+  const mode = terrains[0]?.mode ?? 0;
+  terrainLines.push(`terrain_set_${terrainSetIndex}/mode = ${mode}`);
+
+  for (let i = 0; i < terrains.length; i++) {
+    const t = terrains[i];
+    terrainLines.push(`terrain_set_${terrainSetIndex}/terrains/${i}/name = "${t.name}"`);
+    terrainLines.push(`terrain_set_${terrainSetIndex}/terrains/${i}/color = ${t.color || 'Color(0.2, 0.6, 0.3, 1)'}`);
+  }
+
+  lines.splice(insertIdx, 0, ...terrainLines);
+
+  // Add peering bits to tiles in the atlas source section
+  if (peeringBits && peeringBits.length > 0) {
+    const subResIdx = lines.findIndex(l => l.includes('TileSetAtlasSource'));
+    if (subResIdx === -1) {
+      throw new Error('No TileSetAtlasSource found in ' + tresPath);
+    }
+
+    let subResEnd = lines.length;
+    for (let i = subResIdx + 1; i < lines.length; i++) {
+      if (lines[i].startsWith('[')) { subResEnd = i; break; }
+    }
+
+    const peeringLines: string[] = [];
+    for (const pb of peeringBits) {
+      const alt = pb.alt ?? 0;
+      const prefix = `${pb.atlas_x}:${pb.atlas_y}/${alt}`;
+      const baseDef = `${prefix} = 0`;
+      if (!lines.some(l => l.trim() === baseDef)) {
+        peeringLines.push(baseDef);
+      }
+      peeringLines.push(`${prefix}/terrain_set = ${pb.terrain_set}`);
+      peeringLines.push(`${prefix}/terrain = ${pb.terrain}`);
+      for (const [bit, value] of Object.entries(pb.bits)) {
+        peeringLines.push(`${prefix}/terrains_peering_bit/${bit} = ${value}`);
+      }
+    }
+
+    lines.splice(subResEnd, 0, ...peeringLines);
   }
 
   await writeFile(tresPath, lines.join('\n'), 'utf-8');

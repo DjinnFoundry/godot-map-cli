@@ -6,6 +6,9 @@
 import type { TileCell } from '../types/index.js';
 import { makeTile, seededRandom, type TilePalette, DEFAULT_PALETTE } from './base-generator.js';
 
+const WAYPOINT_DISTANCE_DIVISOR = 10;
+const WANDER_FACTOR = 0.3;
+
 export interface PathOptions {
   fromX: number;
   fromY: number;
@@ -17,6 +20,15 @@ export interface PathOptions {
   palette?: Partial<TilePalette>;
 }
 
+/**
+ * Generate a path between two points using Bresenham line with optional waypoints.
+ *
+ * Limitations:
+ * - Distances < 10 tiles produce nearly straight paths (only 1 waypoint)
+ * - Path widening creates square expansion (not organic/rounded)
+ * - No obstacle avoidance; paths go through anything
+ * - Winding paths can self-intersect on tight curves
+ */
 export function generatePath(options: PathOptions): TileCell[] {
   const {
     fromX, fromY, toX, toY,
@@ -41,7 +53,7 @@ export function generatePath(options: PathOptions): TileCell[] {
     const dx = toX - fromX;
     const dy = toY - fromY;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const waypointCount = Math.max(1, Math.floor(dist / 10));
+    const waypointCount = Math.max(1, Math.floor(dist / WAYPOINT_DISTANCE_DIVISOR));
 
     const waypoints: Array<{ x: number; y: number }> = [{ x: fromX, y: fromY }];
     for (let i = 1; i <= waypointCount; i++) {
@@ -51,7 +63,7 @@ export function generatePath(options: PathOptions): TileCell[] {
       // Add perpendicular offset
       const perpX = -dy / dist;
       const perpY = dx / dist;
-      const offset = (rng() - 0.5) * dist * 0.3;
+      const offset = (rng() - 0.5) * dist * WANDER_FACTOR;
       waypoints.push({
         x: Math.round(baseX + perpX * offset),
         y: Math.round(baseY + perpY * offset),

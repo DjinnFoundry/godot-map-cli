@@ -10,32 +10,35 @@ import { normalize } from 'node:path';
 
 const execFileAsync = promisify(execFile);
 
+const GODOT_VALIDATION_TIMEOUT_MS = 5000;
+
 const MACOS_PATHS = [
   '/Applications/Godot.app/Contents/MacOS/Godot',
   '/Applications/Godot_4.app/Contents/MacOS/Godot',
   `${process.env.HOME}/Applications/Godot.app/Contents/MacOS/Godot`,
   `${process.env.HOME}/Downloads/Godot.app/Contents/MacOS/Godot`,
-];
+].filter(p => !p.includes('undefined'));
 
 const LINUX_PATHS = [
   '/usr/bin/godot',
   '/usr/local/bin/godot',
   '/snap/bin/godot',
   `${process.env.HOME}/.local/bin/godot`,
-];
+].filter(p => !p.includes('undefined'));
 
 const WINDOWS_PATHS = [
   'C:\\Program Files\\Godot\\Godot.exe',
   'C:\\Program Files (x86)\\Godot\\Godot.exe',
   `${process.env.USERPROFILE}\\Godot\\Godot.exe`,
-];
+].filter(p => !p.includes('undefined'));
 
 async function isValidGodot(path: string): Promise<boolean> {
   try {
     if (path !== 'godot' && !existsSync(path)) return false;
-    await execFileAsync(path, ['--version'], { timeout: 5000 });
+    await execFileAsync(path, ['--version'], { timeout: GODOT_VALIDATION_TIMEOUT_MS });
     return true;
   } catch {
+    // Expected: path doesn't exist or isn't a valid Godot binary
     return false;
   }
 }
@@ -65,6 +68,6 @@ export async function findGodot(): Promise<string | null> {
 }
 
 export async function getGodotVersion(godotPath: string): Promise<string> {
-  const { stdout } = await execFileAsync(godotPath, ['--version'], { timeout: 5000 });
+  const { stdout } = await execFileAsync(godotPath, ['--version'], { timeout: GODOT_VALIDATION_TIMEOUT_MS });
   return stdout.trim();
 }

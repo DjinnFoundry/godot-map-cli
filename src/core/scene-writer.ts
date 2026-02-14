@@ -177,3 +177,35 @@ export async function addLayerToScene(
 
   await writeFile(scenePath, lines.join('\n'), 'utf-8');
 }
+
+/**
+ * Remove a TileMapLayer node from an existing scene file.
+ * Removes the [node] section and its properties. Does NOT remove
+ * orphaned ext_resource refs (Godot handles that gracefully).
+ */
+export async function removeLayerFromScene(
+  scenePath: string,
+  layerName: string
+): Promise<void> {
+  const text = await readFile(scenePath, 'utf-8');
+  const parsed = parseTscnText(text);
+  const layers = findTileMapLayers(parsed);
+  const layer = layers.find(l => l.name === layerName);
+
+  if (!layer) {
+    const available = layers.map(l => l.name).join(', ');
+    throw new Error(`Layer "${layerName}" not found. Available: ${available}`);
+  }
+
+  const lines = parsed.lines.slice();
+  const startLine = layer.section.startLine;
+  let endLine = layer.section.endLine;
+
+  // Include trailing blank line if present
+  while (endLine + 1 < lines.length && lines[endLine + 1].trim() === '') {
+    endLine++;
+  }
+
+  lines.splice(startLine, endLine - startLine + 1);
+  await writeFile(scenePath, lines.join('\n'), 'utf-8');
+}

@@ -16,21 +16,29 @@ config_version=5
 [application]
 
 config/name="{{PROJECT_NAME}}"
-config/features=PackedStringArray("4.3", "Forward Plus")
+config/features=PackedStringArray("{{GODOT_VERSION}}", "{{RENDERER}}")
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
+window/size/viewport_width={{VP_WIDTH}}
+window/size/viewport_height={{VP_HEIGHT}}
 
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
 `;
 
+export interface ProjectOptions {
+  renderer?: 'Forward Plus' | 'Mobile' | 'Compatibility';
+  viewportWidth?: number;
+  viewportHeight?: number;
+  godotVersion?: string;  // e.g., "4.3", "4.4"
+}
+
 export async function createProject(
   projectPath: string,
-  name: string
+  name: string,
+  options: ProjectOptions = {}
 ): Promise<void> {
   if (existsSync(join(projectPath, 'project.godot'))) {
     throw new Error(`Project already exists at ${projectPath}`);
@@ -38,8 +46,17 @@ export async function createProject(
 
   await mkdir(projectPath, { recursive: true });
 
-  // Create project.godot
-  const projectConfig = PROJECT_GODOT_TEMPLATE.replace('{{PROJECT_NAME}}', name);
+  // Create project.godot with configurable options
+  const renderer = options.renderer || 'Forward Plus';
+  const vpWidth = options.viewportWidth || 1280;
+  const vpHeight = options.viewportHeight || 720;
+  const godotVer = options.godotVersion || '4.3';
+  const projectConfig = PROJECT_GODOT_TEMPLATE
+    .replace('{{PROJECT_NAME}}', name)
+    .replace('{{GODOT_VERSION}}', godotVer)
+    .replace('{{RENDERER}}', renderer)
+    .replace('{{VP_WIDTH}}', String(vpWidth))
+    .replace('{{VP_HEIGHT}}', String(vpHeight));
   await writeFile(join(projectPath, 'project.godot'), projectConfig, 'utf-8');
 
   // Create standard directories
@@ -89,6 +106,7 @@ async function countFiles(
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
+    // Permission errors expected during recursive traversal
     return;
   }
 
@@ -122,6 +140,7 @@ async function findFilesRecursive(dir: string, ext: string, results: string[]): 
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
+    // Permission errors expected during recursive traversal
     return;
   }
 

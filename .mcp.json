@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "godot-map-cli": {
+      "command": "node",
+      "args": ["./dist/mcp-server.js"]
+    }
+  }
+}
